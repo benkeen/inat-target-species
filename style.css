@@ -104,6 +104,8 @@ main {
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
   margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 1;
 }
 
 .form-group {
@@ -149,6 +151,83 @@ select:focus {
   color: var(--text-muted);
 }
 
+/* ── Toggle map button ─────────────────────────────────────────────────────── */
+
+.place-input-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.place-input-row .autocomplete {
+  flex: 1;
+  min-width: 0;
+}
+
+.map-toggle-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background 0.13s,
+    color 0.13s,
+    border-color 0.13s;
+  padding: 0;
+}
+
+.map-toggle-btn svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  pointer-events: none;
+}
+
+.map-toggle-btn:hover {
+  background: var(--green-100);
+  color: var(--green-700);
+  border-color: var(--green-500);
+}
+
+.map-toggle-btn[aria-pressed='true'] {
+  background: var(--green-700);
+  color: #fff;
+  border-color: var(--green-700);
+}
+
+/* ── Map container ─────────────────────────────────────────────────────────── */
+
+#map-container {
+  height: 420px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+  cursor: crosshair;
+  isolation: isolate;
+}
+
+.map-top-row,
+.map-search-row,
+.map-search-row input[type='search'],
+.map-username-field {
+  /* removed — no longer used */
+}
+
+.map-hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  flex-wrap: wrap;
+}
+
 /* ── Place autocomplete ────────────────────────────────────────────────────── */
 
 .autocomplete {
@@ -164,7 +243,7 @@ select:focus {
   border: 1.5px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.13);
-  z-index: 200;
+  z-index: 400;
   max-height: 240px;
   overflow-y: auto;
 }
@@ -197,50 +276,13 @@ select:focus {
   color: var(--text-muted);
 }
 
-/* ── Filters (collapsible) ─────────────────────────────────────────────────── */
-
-.filters-details {
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
-  padding: 0;
-  margin-bottom: 1.25rem;
-  overflow: hidden;
-}
-
-.filters-details summary {
-  padding: 0.75rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--green-700);
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.filters-details summary::-webkit-details-marker {
-  display: none;
-}
-
-.filters-details summary::before {
-  content: '▶';
-  font-size: 0.7rem;
-  transition: transform 0.2s;
-  color: var(--green-500);
-}
-
-.filters-details[open] summary::before {
-  transform: rotate(90deg);
-}
+/* ── Filters ───────────────────────────────────────────────────────────────── */
 
 .filters-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr auto;
   gap: 1rem;
-  padding: 1rem;
-  border-top: 1px solid var(--border);
+  margin-bottom: 1.25rem;
   align-items: start;
 }
 

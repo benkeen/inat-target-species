@@ -15,6 +15,15 @@ let displayedCount = 0;
 let selectedPlaceId = null;
 let placeDebounce = null;
 
+// bbox / map draw state
+let bboxMode = false;
+let drawnBbox = null; // { nelat, nelng, swlat, swlng }
+let selectedPlaceBounds = null; // Leaflet LatLngBounds of the picked place
+let map = null;
+let drawRect = null;
+let drawStart = null;
+let isDrawing = false;
+
 // ── DOM references ─────────────────────────────────────────────────────────────
 
 const $ = (id) => document.getElementById(id);
@@ -31,6 +40,17 @@ const monthEl = $('month-filter');
 const placeOnlyEl = $('place-only');
 const findBtn = $('find-btn');
 
+// ── Persist username ───────────────────────────────────────────────────────────
+
+const LS_USERNAME = 'inat_username';
+const savedUsername = localStorage.getItem(LS_USERNAME);
+if (savedUsername) usernameEl.value = savedUsername;
+usernameEl.addEventListener('change', () => {
+  const v = usernameEl.value.trim();
+  if (v) localStorage.setItem(LS_USERNAME, v);
+  else localStorage.removeItem(LS_USERNAME);
+});
+
 const statusSection = $('status-section');
 const statusMsg = $('status-msg');
 const progressBar = $('progress-bar');
@@ -44,6 +64,121 @@ const grid = $('species-grid');
 const loadMoreWrap = $('load-more-wrap');
 const loadMoreBtn = $('load-more-btn');
 const downloadBtn = $('download-btn');
+
+const tabNameBtn = $('tab-name');
+const tabMapBtn = $('tab-map');
+const panelNameEl = $('panel-name');
+const panelMapEl = $('panel-map');
+const bboxSelected = $('bbox-selected');
+const clearBboxBtn = $('clear-bbox-btn');
+const toggleMapBtn = $('toggle-map-btn');
+// ── Map toggle ────────────────────────────────────────────────────────────
+
+toggleMapBtn.addEventListener('click', () => {
+  const showing = !panelMapEl.hidden;
+  panelMapEl.hidden = showing;
+  bboxMode = !showing;
+  toggleMapBtn.setAttribute('aria-pressed', String(!showing));
+  toggleMapBtn.title = showing ? 'Show map' : 'Hide map';
+  if (!showing) {
+    initMap();
+    requestAnimationFrame(() => {
+      if (map) {
+        map.invalidateSize();
+        flyToSelectedPlace();
+      }
+    });
+  } else {
+    clearBbox();
+  }
+});
+clearBboxBtn.addEventListener('click', clearBbox);
+
+function switchTab() {} // no-op, kept so nothing breaks
+
+// ── Leaflet map + rectangle drawing ───────────────────────────────────────────
+
+function flyToSelectedPlace() {
+  if (!map || !selectedPlaceBounds) return;
+  map.fitBounds(selectedPlaceBounds, { padding: [30, 30] });
+}
+
+function initMap() {
+  if (map) return;
+  map = L.map('map-container', { zoomControl: true }).setView([20, 0], 2);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:
+      '\u00a9 <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 18,
+  }).addTo(map);
+
+  map.on('mousedown', (e) => {
+    if (e.originalEvent.button !== 0) return;
+    isDrawing = true;
+    drawStart = e.latlng;
+    if (drawRect) {
+      map.removeLayer(drawRect);
+      drawRect = null;
+    }
+    clearBbox();
+    map.dragging.disable();
+    map.getContainer().style.cursor = 'crosshair';
+    map.on('mousemove', onMapMove);
+    map.once('mouseup', onMapUp);
+  });
+}
+
+function onMapMove(e) {
+  if (!isDrawing || !drawStart) return;
+  const bounds = L.latLngBounds(drawStart, e.latlng);
+  if (drawRect) {
+    drawRect.setBounds(bounds);
+  } else {
+    drawRect = L.rectangle(bounds, {
+      color: '#2d5a27',
+      weight: 2,
+      fillColor: '#4a7c59',
+      fillOpacity: 0.15,
+    }).addTo(map);
+  }
+}
+
+function onMapUp(e) {
+  isDrawing = false;
+  map.dragging.enable();
+  map.getContainer().style.cursor = '';
+  map.off('mousemove', onMapMove);
+  if (!drawStart) return;
+  const bounds = L.latLngBounds(drawStart, e.latlng);
+  drawStart = null;
+
+  if (Math.abs(bounds.getNorth() - bounds.getSouth()) < 0.01) {
+    if (drawRect) {
+      map.removeLayer(drawRect);
+      drawRect = null;
+    }
+    return;
+  }
+
+  drawnBbox = {
+    nelat: bounds.getNorth().toFixed(6),
+    nelng: bounds.getEast().toFixed(6),
+    swlat: bounds.getSouth().toFixed(6),
+    swlng: bounds.getWest().toFixed(6),
+  };
+  bboxSelected.textContent = `Box: ${parseFloat(drawnBbox.swlat).toFixed(3)}\u00b0, ${parseFloat(drawnBbox.swlng).toFixed(3)}\u00b0 \u2192 ${parseFloat(drawnBbox.nelat).toFixed(3)}\u00b0, ${parseFloat(drawnBbox.nelng).toFixed(3)}\u00b0`;
+}
+
+function clearBbox() {
+  drawnBbox = null;
+  if (map && drawRect) {
+    map.removeLayer(drawRect);
+    drawRect = null;
+  }
+  if (bboxSelected)
+    bboxSelected.textContent = 'Click and drag on the map to select a region';
+}
 
 // ── Place autocomplete ─────────────────────────────────────────────────────────
 
@@ -141,12 +276,33 @@ function pickPlace(p) {
   placeInput.value = p.display_name || p.name;
   placeSelected.textContent = `Place ID: ${p.id}`;
   hideSuggestions();
+
+  // Derive map bounds from the place object
+  selectedPlaceBounds = null;
+  if (p.bounding_box_geojson) {
+    try {
+      selectedPlaceBounds = L.geoJSON(p.bounding_box_geojson).getBounds();
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!selectedPlaceBounds && p.location) {
+    const [lat, lng] = p.location.split(',').map(Number);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      selectedPlaceBounds = L.latLngBounds([
+        [lat - 0.5, lng - 0.5],
+        [lat + 0.5, lng + 0.5],
+      ]);
+    }
+  }
+  flyToSelectedPlace();
 }
 
 function clearPlaceSelection() {
   selectedPlaceId = null;
   placeIdHidden.value = '';
   placeSelected.textContent = '';
+  selectedPlaceBounds = null;
 }
 
 function hideSuggestions() {
@@ -209,16 +365,25 @@ form.addEventListener('submit', async (e) => {
 });
 
 async function runSearch() {
-  const placeId = placeIdHidden.value.trim();
   const username = usernameEl.value.trim();
 
-  if (!placeId) {
-    placeInput.focus();
-    placeInput.setCustomValidity('Please select or enter a place.');
-    placeInput.reportValidity();
-    return;
+  // Validate location input based on active mode
+  if (bboxMode) {
+    if (!drawnBbox) {
+      removeErrorCard();
+      showErrorCard('Please draw a rectangle on the map to define a region.');
+      return;
+    }
+  } else {
+    const placeId = placeIdHidden.value.trim();
+    if (!placeId) {
+      placeInput.focus();
+      placeInput.setCustomValidity('Please select or enter a place.');
+      placeInput.reportValidity();
+      return;
+    }
+    placeInput.setCustomValidity('');
   }
-  placeInput.setCustomValidity('');
 
   if (!username) {
     usernameEl.focus();
@@ -232,28 +397,37 @@ async function runSearch() {
   removeErrorCard();
   resultsSection.hidden = true;
   findBtn.disabled = true;
-  setStatus(true, 'Fetching species observed in place…', 0);
+  setStatus(true, 'Fetching species observed in region…', 0);
 
   const shared = {};
   if (taxonEl.value) shared.taxon_id = taxonEl.value;
   if (gradeEl.value) shared.quality_grade = gradeEl.value;
   if (monthEl.value) shared.month = monthEl.value;
 
+  const locationParams = bboxMode
+    ? {
+        nelat: drawnBbox.nelat,
+        nelng: drawnBbox.nelng,
+        swlat: drawnBbox.swlat,
+        swlng: drawnBbox.swlng,
+      }
+    : { place_id: placeIdHidden.value };
+
   try {
-    // Step 1 — place species (0–46 %)
+    // Step 1 — region species (0–46 %)
     const placeSpecies = await fetchAllSpeciesCounts(
-      { ...shared, place_id: placeId, verifiable: true },
+      { ...shared, ...locationParams, verifiable: true },
       (done, total) =>
         setStatus(
           true,
-          `Fetching place species… ${fmt(done)} of ${fmt(total)}`,
+          `Fetching species… ${fmt(done)} of ${fmt(total)}`,
           (done / Math.max(total, 1)) * 46,
         ),
     );
 
     // Step 2 — user species (46–92 %)
     const userParams = { ...shared, user_id: username, verifiable: true };
-    if (placeOnlyEl.checked) userParams.place_id = placeId;
+    if (placeOnlyEl.checked) Object.assign(userParams, locationParams);
 
     const userSpecies = await fetchAllSpeciesCounts(userParams, (done, total) =>
       setStatus(
@@ -265,7 +439,7 @@ async function runSearch() {
 
     // Step 3 — compute difference
     setStatus(true, 'Computing target species…', 95);
-    await sleep(50); // let progress bar render
+    await sleep(50);
 
     const seen = new Set(userSpecies.map((s) => s.taxon.id));
     const targets = placeSpecies
@@ -375,9 +549,16 @@ function makeCard(s) {
   const iconic = taxon.iconic_taxon_name || '';
 
   const obsUrl = new URL('https://www.inaturalist.org/observations');
-  obsUrl.searchParams.set('place_id', placeIdHidden.value);
   obsUrl.searchParams.set('taxon_id', taxon.id);
   obsUrl.searchParams.set('verifiable', 'true');
+  if (bboxMode && drawnBbox) {
+    obsUrl.searchParams.set('nelat', drawnBbox.nelat);
+    obsUrl.searchParams.set('nelng', drawnBbox.nelng);
+    obsUrl.searchParams.set('swlat', drawnBbox.swlat);
+    obsUrl.searchParams.set('swlng', drawnBbox.swlng);
+  } else {
+    obsUrl.searchParams.set('place_id', placeIdHidden.value);
+  }
   if (gradeEl.value) obsUrl.searchParams.set('quality_grade', gradeEl.value);
   if (monthEl.value) obsUrl.searchParams.set('month', monthEl.value);
 

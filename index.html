@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>iNat Target Species Finder</title>
     <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
   </head>
   <body>
     <header>
@@ -22,23 +26,47 @@
     <main>
       <section class="card form-section">
         <form id="search-form" novalidate>
-          <div class="form-row">
+          <!-- Place + username row -->
+          <div id="panel-name" class="form-row">
             <div class="form-group" id="place-wrap">
               <label for="place-input">Place</label>
-              <div class="autocomplete">
-                <input
-                  id="place-input"
-                  type="text"
-                  placeholder="Search by name, or type a numeric place ID…"
-                  autocomplete="off"
-                  spellcheck="false"
-                />
-                <div id="suggestions" class="suggestions" hidden></div>
+              <div class="place-input-row">
+                <div class="autocomplete">
+                  <input
+                    id="place-input"
+                    type="text"
+                    placeholder="Search by name, or type a numeric place ID…"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <div id="suggestions" class="suggestions" hidden></div>
+                </div>
+                <button
+                  type="button"
+                  id="toggle-map-btn"
+                  class="map-toggle-btn"
+                  aria-pressed="false"
+                  title="Show map"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                    <line x1="9" y1="3" x2="9" y2="18" />
+                    <line x1="15" y1="6" x2="15" y2="21" />
+                  </svg>
+                </button>
               </div>
               <input id="place-id" type="hidden" />
               <span id="place-selected" class="field-hint"></span>
             </div>
-
             <div class="form-group">
               <label for="username">Your iNaturalist Username</label>
               <input
@@ -46,71 +74,84 @@
                 type="text"
                 placeholder="e.g. jane_naturalist"
                 autocomplete="off"
-                required
               />
             </div>
           </div>
 
-          <details class="filters-details">
-            <summary>Optional Filters</summary>
-            <div class="filters-grid">
-              <div class="form-group">
-                <label for="taxon-filter">Taxon Group</label>
-                <select id="taxon-filter">
-                  <option value="">All taxa</option>
-                  <option value="3">Birds (Aves)</option>
-                  <option value="40151">Mammals</option>
-                  <option value="26036">Reptiles</option>
-                  <option value="20978">Amphibians</option>
-                  <option value="47178">Ray-finned Fish</option>
-                  <option value="47158">Insects</option>
-                  <option value="47119">Arachnids</option>
-                  <option value="47115">Mollusks</option>
-                  <option value="47126">Plants</option>
-                  <option value="47170">Fungi</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="quality-grade">Quality Grade</label>
-                <select id="quality-grade">
-                  <option value="">Any</option>
-                  <option value="research">Research Grade</option>
-                  <option value="needs_id">Needs ID</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="month-filter">Month</label>
-                <select id="month-filter">
-                  <option value="">Any month</option>
-                  <option value="1">January</option>
-                  <option value="2">February</option>
-                  <option value="3">March</option>
-                  <option value="4">April</option>
-                  <option value="5">May</option>
-                  <option value="6">June</option>
-                  <option value="7">July</option>
-                  <option value="8">August</option>
-                  <option value="9">September</option>
-                  <option value="10">October</option>
-                  <option value="11">November</option>
-                  <option value="12">December</option>
-                </select>
-              </div>
-
-              <div class="form-group checkbox-field">
-                <label class="checkbox-label">
-                  <input id="place-only" type="checkbox" />
-                  <span>Only count my observations in this place</span>
-                </label>
-                <p class="field-hint">
-                  When unchecked, any species you've observed anywhere counts as
-                  "seen"
-                </p>
-              </div>
+          <!-- Map mode: full-width -->
+          <div id="panel-map" hidden>
+            <div id="map-container"></div>
+            <div class="map-hint-row">
+              <span id="bbox-selected" class="field-hint"
+                >Click and drag on the map to select a region</span
+              >
+              <button
+                type="button"
+                id="clear-bbox-btn"
+                class="btn-secondary btn-sm"
+              >
+                Clear
+              </button>
             </div>
-          </details>
+          </div>
+
+          <div class="filters-grid">
+            <div class="form-group">
+              <label for="taxon-filter">Taxon Group</label>
+              <select id="taxon-filter">
+                <option value="">All taxa</option>
+                <option value="3">Birds (Aves)</option>
+                <option value="40151">Mammals</option>
+                <option value="26036">Reptiles</option>
+                <option value="20978">Amphibians</option>
+                <option value="47178">Ray-finned Fish</option>
+                <option value="47158">Insects</option>
+                <option value="47119">Arachnids</option>
+                <option value="47115">Mollusks</option>
+                <option value="47126">Plants</option>
+                <option value="47170">Fungi</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="quality-grade">Quality Grade</label>
+              <select id="quality-grade">
+                <option value="">Any</option>
+                <option value="research">Research Grade</option>
+                <option value="needs_id">Needs ID</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="month-filter">Month</label>
+              <select id="month-filter">
+                <option value="">Any month</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+
+            <div class="form-group checkbox-field">
+              <label class="checkbox-label">
+                <input id="place-only" type="checkbox" />
+                <span>Only count my observations in this place</span>
+              </label>
+              <p class="field-hint">
+                When unchecked, any species you've observed anywhere counts as
+                "seen"
+              </p>
+            </div>
+          </div>
 
           <div class="form-footer">
             <button id="find-btn" type="submit" class="btn-primary">
@@ -189,6 +230,7 @@
       </p>
     </footer>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

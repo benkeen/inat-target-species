@@ -1,0 +1,9 @@
+{
+  "name": "inat-target-species",
+  "version": "1.0.0",
+  "description": "Find species observed in a place that you haven't seen yet, using the iNaturalist API.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve -l 8743 . & sleep 1 && open http://localhost:8743"
+  }
+}
