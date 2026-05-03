@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iNat Target Species Finder</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <span class="logo-icon" aria-hidden="true">🔭</span>
+        <div>
+          <h1>iNat Target Species Finder</h1>
+          <p class="tagline">
+            Discover species observed in a place that you haven't seen yet
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="card form-section">
+        <form id="search-form" novalidate>
+          <div class="form-row">
+            <div class="form-group" id="place-wrap">
+              <label for="place-input">Place</label>
+              <div class="autocomplete">
+                <input
+                  id="place-input"
+                  type="text"
+                  placeholder="Search by name, or type a numeric place ID…"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <div id="suggestions" class="suggestions" hidden></div>
+              </div>
+              <input id="place-id" type="hidden" />
+              <span id="place-selected" class="field-hint"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="username">Your iNaturalist Username</label>
+              <input
+                id="username"
+                type="text"
+                placeholder="e.g. jane_naturalist"
+                autocomplete="off"
+                required
+              />
+            </div>
+          </div>
+
+          <details class="filters-details">
+            <summary>Optional Filters</summary>
+            <div class="filters-grid">
+              <div class="form-group">
+                <label for="taxon-filter">Taxon Group</label>
+                <select id="taxon-filter">
+                  <option value="">All taxa</option>
+                  <option value="3">Birds (Aves)</option>
+                  <option value="40151">Mammals</option>
+                  <option value="26036">Reptiles</option>
+                  <option value="20978">Amphibians</option>
+                  <option value="47178">Ray-finned Fish</option>
+                  <option value="47158">Insects</option>
+                  <option value="47119">Arachnids</option>
+                  <option value="47115">Mollusks</option>
+                  <option value="47126">Plants</option>
+                  <option value="47170">Fungi</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="quality-grade">Quality Grade</label>
+                <select id="quality-grade">
+                  <option value="">Any</option>
+                  <option value="research">Research Grade</option>
+                  <option value="needs_id">Needs ID</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="month-filter">Month</label>
+                <select id="month-filter">
+                  <option value="">Any month</option>
+                  <option value="1">January</option>
+                  <option value="2">February</option>
+                  <option value="3">March</option>
+                  <option value="4">April</option>
+                  <option value="5">May</option>
+                  <option value="6">June</option>
+                  <option value="7">July</option>
+                  <option value="8">August</option>
+                  <option value="9">September</option>
+                  <option value="10">October</option>
+                  <option value="11">November</option>
+                  <option value="12">December</option>
+                </select>
+              </div>
+
+              <div class="form-group checkbox-field">
+                <label class="checkbox-label">
+                  <input id="place-only" type="checkbox" />
+                  <span>Only count my observations in this place</span>
+                </label>
+                <p class="field-hint">
+                  When unchecked, any species you've observed anywhere counts as
+                  "seen"
+                </p>
+              </div>
+            </div>
+          </details>
+
+          <div class="form-footer">
+            <button id="find-btn" type="submit" class="btn-primary">
+              Find Target Species
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <div id="status-section" class="card status-card" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="status-msg">Loading…</p>
+        <div
+          class="progress-track"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <div id="progress-bar" class="progress-fill" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <section id="results-section" hidden>
+        <div class="results-header">
+          <div>
+            <h2 id="results-title">Target Species</h2>
+            <p id="results-summary"></p>
+          </div>
+          <div class="results-actions">
+            <label class="sr-only" for="filter-input">Filter species</label>
+            <input
+              id="filter-input"
+              type="search"
+              placeholder="Filter by name…"
+            />
+            <select id="sort-select">
+              <option value="count-desc">Most observed in place</option>
+              <option value="count-asc">Least observed in place</option>
+              <option value="name-asc">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
+            </select>
+            <button
+              id="download-btn"
+              class="btn-secondary btn-sm"
+              title="Download results as CSV"
+            >
+              ↓ CSV
+            </button>
+          </div>
+        </div>
+
+        <div id="species-grid" class="species-grid" role="list"></div>
+
+        <div id="load-more-wrap" class="load-more" hidden>
+          <button id="load-more-btn" class="btn-secondary">Load more</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Powered by the
+        <a
+          href="https://api.inaturalist.org/v1/docs/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >iNaturalist API</a
+        >. Observation data belongs to the
+        <a
+          href="https://www.inaturalist.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          >iNaturalist</a
+        >
+        community.
+      </p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
